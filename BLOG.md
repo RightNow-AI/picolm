@@ -24,8 +24,8 @@ The answer is PicoLLM — a pure-C inference engine with zero dependencies beyon
 
 ```
                 ┌─────────────────────────────────┐
-                │   picolm.c (CLI + Gen Loop)      │
-                │   227 lines                      │
+                │   picolm.c (CLI + Gen Loop)     │
+                │   227 lines                     │
                 └──────────┬──────────────────────┘
                            │
           ┌────────────────┼────────────────┐
@@ -503,7 +503,7 @@ make model                 # Downloads TinyLlama 1.1B Q4_K_M
 
 Or use the one-line installer:
 ```bash
-curl -sSL https://raw.githubusercontent.com/picolm/picolm/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/rightnow-ai/picolm/main/install.sh | bash
 ```
 
 ---
