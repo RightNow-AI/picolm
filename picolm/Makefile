@@ -28,7 +28,7 @@ pi-arm32: CC = arm-linux-gnueabihf-gcc
 pi-arm32: CFLAGS += -march=armv6 -mfpu=vfp
 pi-arm32: $(TARGET)
 
-# --- Cross-compile for Pi from x86 ---
+# --- Cross-compile for Pi64 from platforms (e.g. x86) ---
 cross-pi: CC = aarch64-linux-gnu-gcc
 cross-pi: CFLAGS += -march=armv8-a+simd
 cross-pi: LDFLAGS += -static
@@ -38,6 +38,12 @@ cross-pi: $(TARGET)
 riscv: CC = riscv64-linux-gnu-gcc
 riscv: CFLAGS += -march=rv64gc -mabi=lp64d
 riscv: $(TARGET)
+
+# --- Cross-compile for RISC-V from platforms (e.g. x86) ---
+cross-riscv: CC = riscv64-linux-gnu-gcc
+cross-riscv: CFLAGS += -march=rv64gc -mabi=lp64d
+cross-riscv: LDFLAGS += -static
+cross-riscv: $(TARGET)
 
 # --- Debug build ---
 debug: CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -g -O0
@@ -64,4 +70,4 @@ model:
 clean:
 	rm -f $(TARGET) $(TARGET).exe *.obj *.o
 
-.PHONY: native static pi pi-arm32 cross-pi riscv debug install model clean
+.PHONY: native static pi pi-arm32 cross-pi riscv cross-riscv debug install model clean
