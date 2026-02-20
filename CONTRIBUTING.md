@@ -33,7 +33,7 @@ Thanks for your interest in PicoLLM! This project is intentionally small (~2,500
 ### 1. Fork & clone
 
 ```bash
-git clone https://github.com/picolm/picolm.git
+git clone https://github.com/rightnow-ai/picolm.git
 cd picolm/picolm
 ```
 

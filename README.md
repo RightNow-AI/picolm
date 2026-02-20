@@ -66,8 +66,8 @@ Telegram / Discord / CLI
         │
         ▼
    ┌──────────┐    stdin: prompt     ┌───────────┐
-   │ PicoClaw │ ──────────────────► │  picolm   │
-   │   (Go)   │ ◄────────────────── │   (C)     │
+   │ PicoClaw │ ──────────────────►  │  picolm   │
+   │   (Go)   │ ◄──────────────────  │   (C)     │
    └──────────┘    stdout: response  │ + model   │
         │                            └───────────┘
         ▼                            45 MB RAM
@@ -157,11 +157,11 @@ The model file (638MB) stays on disk. PicoLM **memory-maps** it and streams one 
 ```
                     ┌──────────────────────────────────────────┐
    What goes        │         45 MB Runtime RAM                │
-   in RAM           │  ┌─────────┐ ┌──────────┐ ┌───────────┐ │
-                    │  │ Buffers │ │ FP16 KV  │ │ Tokenizer │ │
-                    │  │  1.2 MB │ │ Cache    │ │   4.5 MB  │ │
-                    │  │         │ │  ~40 MB  │ │           │ │
-                    │  └─────────┘ └──────────┘ └───────────┘ │
+   in RAM           │  ┌─────────┐ ┌──────────┐ ┌───────────┐  │
+                    │  │ Buffers │ │ FP16 KV  │ │ Tokenizer │  │
+                    │  │  1.2 MB │ │ Cache    │ │   4.5 MB  │  │
+                    │  │         │ │  ~40 MB  │ │           │  │
+                    │  └─────────┘ └──────────┘ └───────────┘  │
                     └──────────────────────────────────────────┘
 
                     ┌──────────────────────────────────────────┐
@@ -216,7 +216,7 @@ This will:
 ### Build from source
 
 ```bash
-git clone https://github.com/picolm/picolm.git
+git clone https://github.com/rightnow-ai/picolm.git
 cd picolm/picolm
 
 # Auto-detect CPU (enables SSE2/AVX on x86, NEON on ARM)
@@ -373,8 +373,8 @@ Measured on TinyLlama 1.1B Q4_K_M (638 MB model):
            │  KV Cache I/O   │                    ┌──────────┴──────────┐
            └───┬────────┬────┘                    │    grammar.h/c      │
                │        │                         │  JSON Constraint    │
-      ┌────────┘        └────────┐                │  Logit Masking      │
-      │                          │                └─────────────────────┘
+      ┌────────┘        └───────┐                 │  Logit Masking      │
+      │                         │                 └─────────────────────┘
 ┌─────┴──────┐          ┌───────┴────────┐
 │ tensor.h/c │          │ tokenizer.h/c  │
 │ matmul     │          │ BPE Encode     │
@@ -410,20 +410,20 @@ Input Token
 ┌───────────────┐  ×22 layers
 │ RMSNorm       │─────────────────────────────────────────┐
 │               │                                         │
-│ Q = xb @ Wq  │  Matrix-vector multiply (quantized)     │
-│ K = xb @ Wk  │  Store K,V in FP16 KV cache             │
-│ V = xb @ Wv  │                                         │
+│ Q = xb @ Wq   │  Matrix-vector multiply (quantized)     │
+│ K = xb @ Wk   │  Store K,V in FP16 KV cache             │
+│ V = xb @ Wv   │                                         │
 │               │                                         │
-│ RoPE(Q, K)   │  Rotary position encoding (table lookup) │
+│ RoPE(Q, K)    │  Rotary position encoding (table lookup)│
 │               │                                         │
-│ Attention     │  Flash attention with online softmax     │
-│ (GQA 32→4)   │  Grouped-query: 32 Q heads, 4 KV heads  │
+│ Attention     │  Flash attention with online softmax    │
+│ (GQA 32→4)    │  Grouped-query: 32 Q heads, 4 KV heads  │
 │               │                                         │
-│ x += Out@Wo  │  Output projection + residual            │
+│ x += Out@Wo   │  Output projection + residual           │
 │               │                                         │
 │ RMSNorm       │                                         │
 │               │                                         │
-│ SwiGLU FFN    │  gate=SiLU(xb@Wg), up=xb@Wu            │
+│ SwiGLU FFN    │  gate=SiLU(xb@Wg), up=xb@Wu             │
 │               │  x += (gate*up) @ Wd                    │
 └───────┬───────┘─────────────────────────────────────────┘
         │
@@ -545,8 +545,8 @@ PicoLM/
 │   ├── tokenizer.h/c      ← BPE tokenizer (32 + ~200 lines)
 │   ├── sampler.h/c        ← temperature + top-p sampling (19 + ~100 lines)
 │   ├── grammar.h/c        ← JSON grammar constraints (64 + 175 lines)
-│   ├── Makefile            ← build targets for all platforms
-│   └── build.bat           ← Windows MSVC build script
+│   ├── Makefile           ← build targets for all platforms
+│   └── build.bat          ← Windows MSVC build script
 │
 └── tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf  ← model file (638 MB, not in git)
 ```
