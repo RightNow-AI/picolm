@@ -216,7 +216,7 @@ This will:
 ### Build from source
 
 ```bash
-git clone https://github.com/picolm/picolm.git
+git clone https://github.com/RightNow-AI/picolm.git
 cd picolm/picolm
 
 # Auto-detect CPU (enables SSE2/AVX on x86, NEON on ARM)
