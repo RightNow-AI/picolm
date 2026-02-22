@@ -3,7 +3,7 @@
 # PicoLLM + PicoClaw installer for Raspberry Pi & Linux
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/picolm/picolm/main/install.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/rightnow-ai/picolm/main/install.sh | bash
 #
 # Or locally:
 #   chmod +x install.sh && ./install.sh
