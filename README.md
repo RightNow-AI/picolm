@@ -109,12 +109,16 @@ cd ../picoclaw && make deps && make build
 }
 ```
 
+> Note: PicoClaw is moving fast. If your PicoClaw build complains about a missing API key even for local providers, set a harmless placeholder like `"api_key": "local"` in your PicoClaw config (it is not used by PicoLM).
+
 ```bash
 # 5. Chat — fully offline!
 picoclaw agent -m "What is photosynthesis?"
 ```
 
 ### Or install everything in one line
+
+This installs the PicoLM binary, downloads the TinyLlama model, and writes a starter PicoClaw config.
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/RightNow-AI/picolm/main/install.sh | bash
