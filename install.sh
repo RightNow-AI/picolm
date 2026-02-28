@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# PicoLLM + PicoClaw installer for Raspberry Pi & Linux
+# PicoLM + PicoClaw installer for Raspberry Pi & Linux
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/rightnow-ai/picolm/main/install.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/RightNow-AI/picolm/main/install.sh | bash
 #
 # Or locally:
 #   chmod +x install.sh && ./install.sh
@@ -17,6 +17,10 @@ MODEL_NAME="tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
 THREADS=4
 PICOCLAW_CONFIG_DIR="${HOME}/.picoclaw"
 
+# Source fetch (used when running via curl | bash)
+PICOLM_REPO="RightNow-AI/picolm"
+PICOLM_REF="${PICOLM_REF:-main}"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -26,6 +30,45 @@ NC='\033[0m'
 info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[x]${NC} $*"; exit 1; }
+
+# ---- Helpers ----
+fetch_picolm_src() {
+  # Fetches picolm/ sources into "$INSTALL_DIR/src" when the script is not run from a repo checkout.
+  # Prefers git if available; falls back to downloading a tarball via curl + tar.
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' RETURN
+
+  info "Fetching PicoLM source (${PICOLM_REPO}@${PICOLM_REF})..."
+
+  if command -v git >/dev/null 2>&1; then
+    if git clone --depth=1 --branch "$PICOLM_REF" "https://github.com/${PICOLM_REPO}.git" "$tmp/repo" >/dev/null 2>&1; then
+      cp "$tmp/repo"/picolm/*.c "$INSTALL_DIR/src/" 2>/dev/null || true
+      cp "$tmp/repo"/picolm/*.h "$INSTALL_DIR/src/" 2>/dev/null || true
+      cp "$tmp/repo"/picolm/Makefile "$INSTALL_DIR/src/" 2>/dev/null || true
+      return 0
+    fi
+    warn "git clone failed, falling back to tarball download..."
+  fi
+
+  # Tarball fallback (works without git)
+  local tar_url="https://codeload.github.com/${PICOLM_REPO}/tar.gz/${PICOLM_REF}"
+  if ! curl -fsSL "$tar_url" -o "$tmp/src.tgz"; then
+    return 1
+  fi
+  tar -xzf "$tmp/src.tgz" -C "$tmp" >/dev/null 2>&1 || return 1
+
+  # Find extracted folder (name can vary: picolm-main, picolm-${ref}, etc.)
+  local extracted
+  extracted="$(find "$tmp" -maxdepth 1 -type d -name 'picolm-*' -o -name 'picolm' | head -n 1)"
+  if [ -z "${extracted:-}" ] || [ ! -d "$extracted/picolm" ]; then
+    return 1
+  fi
+
+  cp "$extracted"/picolm/*.c "$INSTALL_DIR/src/" 2>/dev/null || true
+  cp "$extracted"/picolm/*.h "$INSTALL_DIR/src/" 2>/dev/null || true
+  cp "$extracted"/picolm/Makefile "$INSTALL_DIR/src/" 2>/dev/null || true
+}
 
 # ---- Detect platform ----
 ARCH=$(uname -m)
@@ -51,7 +94,7 @@ if [ -f /proc/meminfo ]; then
     MEM_MB=$((MEM_KB / 1024))
     info "Available RAM: ${MEM_MB} MB"
     if [ "$MEM_MB" -lt 256 ]; then
-        error "PicoLLM needs at least 256 MB RAM. Detected: ${MEM_MB} MB"
+        error "PicoLM needs at least 256 MB RAM. Detected: ${MEM_MB} MB"
     elif [ "$MEM_MB" -lt 512 ]; then
         warn "Low RAM (${MEM_MB} MB). Consider reducing context: picolm ... -c 512"
     fi
@@ -64,6 +107,7 @@ DEPS_NEEDED=""
 command -v gcc   >/dev/null 2>&1 || DEPS_NEEDED="$DEPS_NEEDED gcc"
 command -v make  >/dev/null 2>&1 || DEPS_NEEDED="$DEPS_NEEDED make"
 command -v curl  >/dev/null 2>&1 || DEPS_NEEDED="$DEPS_NEEDED curl"
+command -v tar   >/dev/null 2>&1 || DEPS_NEEDED="$DEPS_NEEDED tar"
 
 if [ -n "$DEPS_NEEDED" ]; then
     info "Installing: $DEPS_NEEDED"
@@ -92,9 +136,10 @@ if [ -f "$SCRIPT_DIR/picolm/picolm.c" ]; then
     cp "$SCRIPT_DIR"/picolm/*.h "$INSTALL_DIR/src/" 2>/dev/null || true
     cp "$SCRIPT_DIR"/picolm/Makefile "$INSTALL_DIR/src/" 2>/dev/null || true
 else
-    warn "picolm source not found locally."
-    warn "Please copy the picolm/ directory to $INSTALL_DIR/src/"
-    warn "Then re-run this script."
+    warn "PicoLM source not found next to install.sh (likely running via curl | bash)."
+    if ! fetch_picolm_src; then
+        error "Failed to fetch PicoLM source. Try: git clone https://github.com/${PICOLM_REPO}.git && ./install.sh"
+    fi
 fi
 
 # ---- Step 4: Build picolm ----
@@ -117,7 +162,7 @@ if [ -f "$INSTALL_DIR/src/picolm.c" ]; then
         error "Build failed — picolm binary not produced"
     fi
 else
-    warn "Skipping build — no source files found."
+    error "Build skipped — source files missing in $INSTALL_DIR/src (unexpected)."
 fi
 
 # ---- Step 5: Download model ----
@@ -195,7 +240,7 @@ PICOCLAW_CFG="$PICOCLAW_CONFIG_DIR/config.json"
 
 if [ -f "$PICOCLAW_CFG" ]; then
     warn "PicoClaw config already exists: $PICOCLAW_CFG"
-    warn "To use PicoLLM, ensure your providers section includes:"
+    warn "To use PicoLM, ensure your providers section includes:"
     echo ""
     cat <<EOF
   "picolm": {
@@ -250,7 +295,7 @@ PROFILE_FILE="$HOME/.bashrc"
 
 if ! grep -q "picolm/bin" "$PROFILE_FILE" 2>/dev/null; then
     echo "" >> "$PROFILE_FILE"
-    echo "# PicoLLM" >> "$PROFILE_FILE"
+    echo "# PicoLM" >> "$PROFILE_FILE"
     echo "export PATH=\"\$PATH:$INSTALL_DIR/bin\"" >> "$PROFILE_FILE"
     info "Added $INSTALL_DIR/bin to PATH in $PROFILE_FILE"
 fi
@@ -258,7 +303,7 @@ fi
 # ---- Done ----
 echo ""
 echo "============================================"
-info "PicoLLM installation complete!"
+info "PicoLM installation complete!"
 echo "============================================"
 echo ""
 echo "  Binary:  $INSTALL_DIR/bin/picolm"
@@ -269,7 +314,7 @@ echo ""
 echo "  To activate PATH now (or open a new terminal):"
 echo "    source $PROFILE_FILE"
 echo ""
-echo "  Quick test (PicoLLM direct):"
+echo "  Quick test (PicoLM direct):"
 echo "    picolm $MODEL_PATH -p \"Hello\" -n 50 -j $THREADS"
 echo ""
 echo "  Chat with PicoClaw agent:"
@@ -281,5 +326,5 @@ echo ""
 echo "  Start Telegram/Discord gateway:"
 echo "    picoclaw gateway"
 echo ""
-echo "  Memory usage: ~45 MB (PicoLLM) + ~10 MB (PicoClaw) + model on disk via mmap"
+echo "  Memory usage: ~45 MB (PicoLM) + ~10 MB (PicoClaw) + model on disk via mmap"
 echo ""
