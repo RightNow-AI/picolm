@@ -246,12 +246,31 @@ void rope(float *q, float *k, int head_dim, int n_heads, int n_kv_heads,
     /* Apply RoPE to all KV heads */
     for (int h = 0; h < n_kv_heads; h++) {
         float *kh = k + h * head_dim;
+#ifdef PICOLM_NEON
+        int i = 0;
+        for (; i + 3 < half; i += 4) {
+            float32x4x2_t kv = vld2q_f32(kh + i * 2);
+            float32x4_t cv = vld1q_f32(cos_pos + i);
+            float32x4_t sv = vld1q_f32(sin_pos + i);
+            float32x4_t new_even = vmlsq_f32(vmulq_f32(kv.val[0], cv), kv.val[1], sv);
+            float32x4_t new_odd  = vmlaq_f32(vmulq_f32(kv.val[0], sv), kv.val[1], cv);
+            float32x4x2_t result = {{ new_even, new_odd }};
+            vst2q_f32(kh + i * 2, result);
+        }
+        for (; i < half; i++) {
+            float k0 = kh[i * 2];
+            float k1 = kh[i * 2 + 1];
+            kh[i * 2]     = k0 * cos_pos[i] - k1 * sin_pos[i];
+            kh[i * 2 + 1] = k0 * sin_pos[i] + k1 * cos_pos[i];
+        }
+#else
         for (int i = 0; i < half; i++) {
             float k0 = kh[i * 2];
             float k1 = kh[i * 2 + 1];
             kh[i * 2]     = k0 * cos_pos[i] - k1 * sin_pos[i];
             kh[i * 2 + 1] = k0 * sin_pos[i] + k1 * cos_pos[i];
         }
+#endif
     }
 }
 
