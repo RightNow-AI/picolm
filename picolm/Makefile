@@ -1,5 +1,5 @@
 CC      = gcc
-CFLAGS  = -O2 -std=c11 -D_GNU_SOURCE -Wall -Wextra -Wpedantic
+CFLAGS  = -O3 -std=c11 -D_GNU_SOURCE -Wall -Wextra -Wpedantic -ffast-math
 LDFLAGS = -lm -lpthread
 SRCS    = picolm.c model.c tensor.c quant.c tokenizer.c sampler.c grammar.c
 TARGET  = picolm
