@@ -601,17 +601,29 @@ float *model_forward(model_t *m, int token, int pos) {
         rope(s->q, k_tmp, head_dim, n_heads, n_kv_heads, cos_pos, sin_pos);
 
         /* Convert K to FP16 and store */
+#ifdef PICOLM_FP16_HW
+        for (int d = 0; d < kv_dim; d += 4) {
+            f32x4_to_fp16(key_pos_fp16 + d, vld1q_f32(k_tmp + d));
+        }
+#else
         for (int d = 0; d < kv_dim; d++) {
             key_pos_fp16[d] = fp32_to_fp16(k_tmp[d]);
         }
+#endif
 
         /* V projection -> store directly as FP16 */
         float *v_tmp = s->xb2;
         matmul(v_tmp, s->xb, lw->attn_v, dim, kv_dim, lw->type_attn_v);
         uint16_t *val_pos_fp16 = vcache_layer + (size_t)pos * kv_dim;
+#ifdef PICOLM_FP16_HW
+        for (int d = 0; d < kv_dim; d += 4) {
+            f32x4_to_fp16(val_pos_fp16 + d, vld1q_f32(v_tmp + d));
+        }
+#else
         for (int d = 0; d < kv_dim; d++) {
             val_pos_fp16[d] = fp32_to_fp16(v_tmp[d]);
         }
+#endif
 
         /* ---- Flash Attention (online softmax) ----
          *
@@ -647,10 +659,18 @@ float *model_forward(model_t *m, int token, int pos) {
             for (int t = 0; t <= pos; t++) {
                 /* Compute score: dot(Q_h, K_t) / sqrt(head_dim) */
                 const uint16_t *kt = kcache_layer + (size_t)t * kv_dim + kv_h * head_dim;
+#ifdef PICOLM_FP16_HW
+                float32x4_t dot_acc = vdupq_n_f32(0);
+                for (int d = 0; d < head_dim; d += 4) {
+                    dot_acc = vmlaq_f32(dot_acc, vld1q_f32(qh + d), fp16x4_to_f32(kt + d));
+                }
+                float score = vaddvq_f32(dot_acc);
+#else
                 float score = 0.0f;
                 for (int d = 0; d < head_dim; d++) {
                     score += qh[d] * fp16_to_fp32(kt[d]);
                 }
+#endif
                 score /= sqrtf((float)head_dim);
 
                 /* Online softmax update */
@@ -659,24 +679,47 @@ float *model_forward(model_t *m, int token, int pos) {
                 if (score > max_score) {
                     float correction = expf(max_score - score);
                     sum_exp = sum_exp * correction + 1.0f;
+#ifdef PICOLM_FP16_HW
+                    float32x4_t corr_v = vdupq_n_f32(correction);
+                    for (int d = 0; d < head_dim; d += 4) {
+                        float32x4_t a = vld1q_f32(acc + d);
+                        vst1q_f32(acc + d, vmlaq_f32(fp16x4_to_f32(vt + d), a, corr_v));
+                    }
+#else
                     for (int d = 0; d < head_dim; d++) {
                         acc[d] = acc[d] * correction + fp16_to_fp32(vt[d]);
                     }
+#endif
                     max_score = score;
                 } else {
                     float w = expf(score - max_score);
                     sum_exp += w;
+#ifdef PICOLM_FP16_HW
+                    float32x4_t w_v = vdupq_n_f32(w);
+                    for (int d = 0; d < head_dim; d += 4) {
+                        float32x4_t a = vld1q_f32(acc + d);
+                        vst1q_f32(acc + d, vmlaq_f32(a, fp16x4_to_f32(vt + d), w_v));
+                    }
+#else
                     for (int d = 0; d < head_dim; d++) {
                         acc[d] += w * fp16_to_fp32(vt[d]);
                     }
+#endif
                 }
             }
 
             /* Normalize */
             float inv_sum = 1.0f / sum_exp;
+#ifdef PICOLM_FP16_HW
+            float32x4_t inv_v = vdupq_n_f32(inv_sum);
+            for (int d = 0; d < head_dim; d += 4) {
+                vst1q_f32(xbh + d, vmulq_f32(vld1q_f32(acc + d), inv_v));
+            }
+#else
             for (int d = 0; d < head_dim; d++) {
                 xbh[d] = acc[d] * inv_sum;
             }
+#endif
         }
 
         /* Output projection */

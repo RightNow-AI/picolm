@@ -16,6 +16,15 @@ static inline float vaddvq_f32_compat(float32x4_t v) {
     return vget_lane_f32(vpadd_f32(r, r), 0);
 #endif
 }
+#if defined(__aarch64__)
+#define PICOLM_FP16_HW 1
+static inline float32x4_t fp16x4_to_f32(const uint16_t *p) {
+    return vcvt_f32_f16(vreinterpret_f16_u16(vld1_u16(p)));
+}
+static inline void f32x4_to_fp16(uint16_t *p, float32x4_t v) {
+    vst1_u16(p, vreinterpret_u16_f16(vcvt_f16_f32(v)));
+}
+#endif
 #endif
 
 #if defined(__SSE2__) || (defined(_MSC_VER) && (defined(_M_X64) || defined(_M_AMD64)))
